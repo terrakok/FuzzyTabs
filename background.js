@@ -39,4 +39,28 @@
   } else {
     log('commands API not available');
   }
+
+  // Handle messages from content scripts
+  if (api && api.runtime && api.runtime.onMessage) {
+    api.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+      try {
+        if (!msg || !msg.type) return; // not ours
+        if (msg.type === 'get-all-tabs') {
+          log('get-all-tabs request');
+          api.tabs.query({}, (tabs) => {
+            try {
+              const data = (tabs || []).map(t => ({ id: t.id, title: t.title, url: t.url, favIconUrl: t.favIconUrl, active: t.active, windowId: t.windowId }));
+              sendResponse({ ok: true, tabs: data });
+            } catch (e) {
+              log('error mapping tabs', e);
+              sendResponse({ ok: false, error: String(e) });
+            }
+          });
+          return true; // keep the message channel open for async sendResponse
+        }
+      } catch (e) {
+        log('onMessage handler error', e);
+      }
+    });
+  }
 })();
