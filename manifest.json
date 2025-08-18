@@ -2,7 +2,7 @@
   "manifest_version": 2,
   "name": "FuzzyTabs",
   "version": "1.0.0",
-  "description": "Fuzzy-search through opened tabs!",
+  "description": "Fuzzy-search through opened tabs",
   "icons": {
     "48": "icons/ic_search.svg"
   },
@@ -20,9 +20,9 @@
   "commands": {
     "toggle-spotlight": {
       "suggested_key": {
-        "default": "Ctrl+Shift+Comma"
+        "default": "Ctrl+Shift+I"
       },
-      "description": "Toggle FuzzyTabs overlay"
+      "description": "Open FuzzyTabs"
     }
   },
   "content_scripts": [
