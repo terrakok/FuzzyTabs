@@ -5,6 +5,57 @@
   const log = (...args) => { if (!DEBUG) return; try { console.debug('[FuzzySpotlight][content]', ...args); } catch (_) {} };
   log('content script loaded', { url: location.href });
 
+  // State for results navigation
+  const STATE = { tabs: [], focusedIndex: -1 };
+
+  function getOverlayElements() {
+    const overlay = document.getElementById(OVERLAY_ID) || createOverlay();
+    return {
+      overlay,
+      input: overlay.querySelector('#' + CSS.escape(INPUT_ID)),
+      ul: overlay.querySelector('.fsl-results')
+    };
+  }
+
+  function setFocusedIndex(newIndex) {
+    const { ul } = getOverlayElements();
+    const items = ul ? Array.from(ul.querySelectorAll('li')) : [];
+    if (!items.length) { STATE.focusedIndex = -1; return; }
+    const max = items.length - 1;
+    newIndex = Math.max(0, Math.min(max, newIndex));
+    // Remove previous
+    if (STATE.focusedIndex >= 0 && items[STATE.focusedIndex]) {
+      items[STATE.focusedIndex].classList.remove('focused');
+    }
+    // Add to new
+    STATE.focusedIndex = newIndex;
+    const li = items[newIndex];
+    if (li) {
+      li.classList.add('focused');
+      try { li.scrollIntoView({ block: 'nearest' }); } catch (_) {}
+    }
+  }
+
+  function moveFocus(delta) {
+    const { ul } = getOverlayElements();
+    const items = ul ? Array.from(ul.querySelectorAll('li')) : [];
+    if (!items.length) return;
+    const next = STATE.focusedIndex < 0 ? 0 : STATE.focusedIndex + delta;
+    setFocusedIndex(next);
+  }
+
+  function activateTabById(tabId) {
+    try {
+      const api = (typeof browser !== 'undefined') ? browser : chrome;
+      api.runtime.sendMessage({ type: 'activate-tab', tabId }, (resp) => {
+        // On success, close overlay
+        if (resp && resp.ok) {
+          closeOverlay();
+        }
+      });
+    } catch (_) {}
+  }
+
   function createOverlay() {
     log('createOverlay called');
     if (document.getElementById(OVERLAY_ID)) return document.getElementById(OVERLAY_ID);
@@ -40,6 +91,10 @@
       #${OVERLAY_ID} .fsl-fav { width: 16px; height: 16px; flex: 0 0 16px; border-radius: 2px; background: rgba(255,255,255,0.1); }
       #${OVERLAY_ID} .fsl-title { font-weight: 500; margin-right: 6px; overflow: hidden; text-overflow: ellipsis; }
       #${OVERLAY_ID} .fsl-url { color: rgba(255,255,255,0.65); font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
+      #${OVERLAY_ID} .fsl-results li { position: relative; }
+      #${OVERLAY_ID} .fsl-results li .fsl-arrow { width: 10px; flex: 0 0 10px; color: #fff; opacity: 0; }
+      #${OVERLAY_ID} .fsl-results li.focused .fsl-arrow { opacity: 1; }
+      #${OVERLAY_ID} .fsl-results li.focused { background: rgba(255,255,255,0.08); }
     `;
 
     overlay.appendChild(style);
@@ -68,27 +123,65 @@
         log('Escape pressed, closing overlay');
         e.preventDefault();
         closeOverlay();
+        return;
+      }
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        moveFocus(1);
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        moveFocus(-1);
+        return;
+      }
+      if (e.key === 'Enter') {
+        // Activate the focused tab
+        const { ul } = getOverlayElements();
+        if (!ul) return;
+        const items = Array.from(ul.querySelectorAll('li'));
+        if (STATE.focusedIndex >= 0 && items[STATE.focusedIndex]) {
+          const li = items[STATE.focusedIndex];
+          const tabId = li && li.getAttribute('data-tab-id');
+          if (tabId) {
+            e.preventDefault();
+            activateTabById(parseInt(tabId, 10));
+          }
+        }
       }
     }, true);
 
     return overlay;
   }
 
+  // Helpers injected between overlay creation and rendering
   function renderTabsList(tabs) {
     try {
       const overlay = document.getElementById(OVERLAY_ID) || createOverlay();
       const ul = overlay.querySelector('.fsl-results');
       if (!ul) return;
       ul.innerHTML = '';
-      if (!tabs || !tabs.length) {
+      STATE.tabs = Array.isArray(tabs) ? tabs.slice() : [];
+      STATE.focusedIndex = -1;
+      if (!STATE.tabs.length) {
         const li = document.createElement('li');
         li.textContent = 'No tabs available';
         li.style.color = 'rgba(255,255,255,0.6)';
         ul.appendChild(li);
         return;
       }
-      for (const t of tabs) {
+      for (let i = 0; i < STATE.tabs.length; i++) {
+        const t = STATE.tabs[i];
         const li = document.createElement('li');
+        li.setAttribute('data-tab-id', String(t.id));
+        li.setAttribute('role', 'option');
+        li.setAttribute('aria-selected', 'false');
+
+        // small arrow indicator (hidden unless focused)
+        const arrow = document.createElement('span');
+        arrow.className = 'fsl-arrow';
+        arrow.textContent = '▸';
+
         // favicon
         const img = document.createElement('img');
         img.className = 'fsl-fav';
@@ -114,11 +207,26 @@
         urlSpan.className = 'fsl-url';
         urlSpan.textContent = t.url || '';
 
+        li.appendChild(arrow);
         li.appendChild(img);
         li.appendChild(titleSpan);
         li.appendChild(urlSpan);
+
+        // interactions: hover moves focus; click activates
+        li.addEventListener('mouseenter', () => {
+          const idx = Array.prototype.indexOf.call(ul.children, li);
+          setFocusedIndex(idx);
+        });
+        li.addEventListener('click', (ev) => {
+          ev.preventDefault();
+          const tabId = t.id;
+          if (tabId != null) activateTabById(tabId);
+        });
+
         ul.appendChild(li);
       }
+      // initialize focus to the first item
+      setFocusedIndex(0);
     } catch (e) {
       log('renderTabsList error', e);
     }
