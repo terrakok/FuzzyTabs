@@ -1,8 +1,8 @@
 {
   "manifest_version": 2,
-  "name": "Fuzzy Spotlight",
+  "name": "FuzzyTabs",
   "version": "1.0.0",
-  "description": "Show a Spotlight-like overlay on any site with Ctrl+Shift+U.",
+  "description": "Fuzzy-search through opened tabs!",
   "icons": {
     "48": "icons/border-48.png"
   },
@@ -16,9 +16,9 @@
   "commands": {
     "toggle-spotlight": {
       "suggested_key": {
-        "default": "Alt+Shift+U"
+        "default": "Ctrl+Shift+Comma"
       },
-      "description": "Toggle Spotlight overlay"
+      "description": "Toggle FuzzyTabs overlay"
     }
   },
   "content_scripts": [

@@ -6,7 +6,7 @@
   log('content script loaded', { url: location.href });
 
   // State for results navigation
-  const STATE = { tabs: [], focusedIndex: -1 };
+  const STATE = { allTabs: [], tabs: [], focusedIndex: -1, query: '' };
 
   function getOverlayElements() {
     const overlay = document.getElementById(OVERLAY_ID) || createOverlay();
@@ -56,6 +56,132 @@
     } catch (_) {}
   }
 
+  // --- Fuzzy search helpers ---
+  function isWordBoundary(prevChar) {
+    const sepRe = /[\s\-_.\/\\()\[\]{}<>\"'`~!@#$%^&*+=|,:;?]/;
+    return !prevChar || sepRe.test(prevChar);
+  }
+
+  function fuzzyMatch(query, candidate) {
+    if (!query) return { matched: true, score: 0, indexes: [] };
+    if (!candidate) return { matched: false, score: -Infinity, indexes: [] };
+    const q = query.toLowerCase();
+    const s = candidate.toLowerCase();
+    let qi = 0;
+    let score = 0;
+    const idx = [];
+    let lastMatchPos = -1;
+    let streak = 0;
+    for (let si = 0; si < s.length && qi < q.length; si++) {
+      if (s[si] === q[qi]) {
+        idx.push(si);
+        // Base point
+        score += 1;
+        // Consecutive bonus
+        if (lastMatchPos === si - 1) {
+          streak += 1;
+          score += 0.5 + Math.min(streak * 0.05, 0.3);
+        } else {
+          streak = 0;
+        }
+        // Word boundary / start bonus
+        const prev = si > 0 ? candidate[si - 1] : '';
+        if (isWordBoundary(prev)) score += 0.7;
+        // Early position bonus
+        score += Math.max(0, 1.2 - si * 0.01);
+        lastMatchPos = si;
+        qi++;
+      }
+    }
+    const matched = qi === q.length;
+    if (!matched) return { matched: false, score: -Infinity, indexes: [] };
+    // Prefer shorter gaps (compactness)
+    if (idx.length > 1) {
+      let gaps = 0;
+      for (let i = 1; i < idx.length; i++) gaps += idx[i] - idx[i - 1] - 1;
+      score -= gaps * 0.02;
+    }
+    return { matched: true, score, indexes: idx };
+  }
+
+  function rangesFromIndexes(indexes) {
+    if (!indexes || !indexes.length) return [];
+    const ranges = [];
+    let start = indexes[0];
+    let prev = indexes[0];
+    for (let i = 1; i < indexes.length; i++) {
+      if (indexes[i] === prev + 1) {
+        prev = indexes[i];
+      } else {
+        ranges.push([start, prev + 1]);
+        start = indexes[i];
+        prev = indexes[i];
+      }
+    }
+    ranges.push([start, prev + 1]);
+    return ranges;
+  }
+
+  function buildHighlightedSpan(text, indexes) {
+    const ranges = rangesFromIndexes(indexes);
+    const span = document.createElement('span');
+    let pos = 0;
+    for (const [a, b] of ranges) {
+      if (a > pos) span.appendChild(document.createTextNode(text.slice(pos, a)));
+      const mark = document.createElement('span');
+      mark.className = 'fsl-hl';
+      mark.textContent = text.slice(a, b);
+      span.appendChild(mark);
+      pos = b;
+    }
+    if (pos < text.length) span.appendChild(document.createTextNode(text.slice(pos)));
+    return span;
+  }
+
+  function scoreTab(query, tab) {
+    const title = (tab.title && tab.title.trim()) ? tab.title : '';
+    const url = tab.url || '';
+    const mt = fuzzyMatch(query, title);
+    const mu = fuzzyMatch(query, url);
+    // Weight title higher than URL
+    let score = (mt.matched ? mt.score * 2.2 : -Infinity);
+    let titleIdx = mt.matched ? mt.indexes : [];
+    let urlIdx = [];
+    if (mu.matched) {
+      const urlScore = mu.score * 1.2;
+      if (!mt.matched) {
+        score = urlScore;
+        urlIdx = mu.indexes;
+      } else {
+        // If both match, combine a bit and keep title highlight, but also keep URL indexes
+        score = Math.max(score, urlScore) + 0.2; // small combo bonus
+        urlIdx = mu.indexes;
+      }
+    }
+    // Active tab small boost
+    if (tab.active) score += 0.15;
+    return { score, titleIdx, urlIdx, matched: (mt.matched || mu.matched) };
+  }
+
+  function computeResultsAndRender() {
+    const { ul, input } = getOverlayElements();
+    if (!ul) return;
+    const q = (input && input.value || '').trim();
+    STATE.query = q;
+    if (!q) {
+      // No query: show all tabs in original order
+      renderTabsList(STATE.allTabs.map(t => ({ tab: t }))); 
+      return;
+    }
+    const results = [];
+    for (const t of STATE.allTabs) {
+      const r = scoreTab(q, t);
+      if (r.matched) results.push({ tab: t, score: r.score, titleIdx: r.titleIdx, urlIdx: r.urlIdx });
+    }
+    results.sort((a, b) => b.score - a.score);
+    renderTabsList(results);
+  }
+
   function createOverlay() {
     log('createOverlay called');
     if (document.getElementById(OVERLAY_ID)) return document.getElementById(OVERLAY_ID);
@@ -95,6 +221,7 @@
       #${OVERLAY_ID} .fsl-results li .fsl-arrow { width: 10px; flex: 0 0 10px; color: #fff; opacity: 0; }
       #${OVERLAY_ID} .fsl-results li.focused .fsl-arrow { opacity: 1; }
       #${OVERLAY_ID} .fsl-results li.focused { background: rgba(255,255,255,0.08); }
+      #${OVERLAY_ID} .fsl-hl { color: #ffe08a; font-weight: 700; }
     `;
 
     overlay.appendChild(style);
@@ -104,6 +231,12 @@
 
     document.documentElement.appendChild(overlay);
     log('overlay injected into DOM');
+
+    // Wire input events for fuzzy search
+    const inputEl = overlay.querySelector('#' + CSS.escape(INPUT_ID));
+    if (inputEl) {
+      inputEl.addEventListener('input', () => computeResultsAndRender());
+    }
 
     // Prevent page scroll while open
     const observer = new MutationObserver(() => {
@@ -155,23 +288,32 @@
   }
 
   // Helpers injected between overlay creation and rendering
-  function renderTabsList(tabs) {
+  function renderTabsList(items) {
     try {
       const overlay = document.getElementById(OVERLAY_ID) || createOverlay();
       const ul = overlay.querySelector('.fsl-results');
       if (!ul) return;
       ul.innerHTML = '';
-      STATE.tabs = Array.isArray(tabs) ? tabs.slice() : [];
+
+      // Normalize items to { tab, titleIdx?, urlIdx? }
+      const normalized = (Array.isArray(items) ? items : []).map(it => {
+        if (it && it.tab) return it;
+        return { tab: it };
+      });
+
+      STATE.tabs = normalized.map(n => n.tab);
       STATE.focusedIndex = -1;
-      if (!STATE.tabs.length) {
+
+      if (!normalized.length) {
         const li = document.createElement('li');
-        li.textContent = 'No tabs available';
+        li.textContent = STATE.query ? 'No results' : 'No tabs available';
         li.style.color = 'rgba(255,255,255,0.6)';
         ul.appendChild(li);
         return;
       }
-      for (let i = 0; i < STATE.tabs.length; i++) {
-        const t = STATE.tabs[i];
+
+      for (let i = 0; i < normalized.length; i++) {
+        const { tab: t, titleIdx, urlIdx } = normalized[i];
         const li = document.createElement('li');
         li.setAttribute('data-tab-id', String(t.id));
         li.setAttribute('role', 'option');
@@ -198,14 +340,24 @@
         if (favicon) img.src = favicon;
         img.addEventListener('error', () => { img.style.visibility = 'hidden'; });
 
-        // title and url
+        // title and url with highlight
         const titleSpan = document.createElement('span');
         titleSpan.className = 'fsl-title';
-        titleSpan.textContent = (t.title && t.title.trim()) ? t.title : (t.url || 'Untitled');
+        const titleText = (t.title && t.title.trim()) ? t.title : (t.url || 'Untitled');
+        if (STATE.query && titleIdx && titleIdx.length) {
+          titleSpan.appendChild(buildHighlightedSpan(titleText, titleIdx));
+        } else {
+          titleSpan.textContent = titleText;
+        }
 
         const urlSpan = document.createElement('span');
         urlSpan.className = 'fsl-url';
-        urlSpan.textContent = t.url || '';
+        const urlText = t.url || '';
+        if (STATE.query && urlIdx && urlIdx.length) {
+          urlSpan.appendChild(buildHighlightedSpan(urlText, urlIdx));
+        } else {
+          urlSpan.textContent = urlText;
+        }
 
         li.appendChild(arrow);
         li.appendChild(img);
@@ -239,10 +391,12 @@
         try {
           if (resp && resp.ok && Array.isArray(resp.tabs)) {
             log('received tabs list', { count: resp.tabs.length });
-            renderTabsList(resp.tabs);
+            STATE.allTabs = resp.tabs.slice();
+            computeResultsAndRender();
           } else {
             log('unexpected response for get-all-tabs', resp);
-            renderTabsList([]);
+            STATE.allTabs = [];
+            computeResultsAndRender();
           }
         } catch (e) {
           log('error handling tabs response', e);
