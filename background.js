@@ -40,6 +40,18 @@
     log('commands API not available');
   }
 
+  // Open overlay when the toolbar icon is clicked (MV2: browserAction)
+  try {
+    if (api && api.browserAction && api.browserAction.onClicked) {
+      log('registering browserAction.onClicked listener');
+      api.browserAction.onClicked.addListener(() => {
+        sendToggleToActiveTab();
+      });
+    }
+  } catch (e) {
+    log('failed to register browserAction.onClicked', e);
+  }
+
   // Handle messages from content scripts
   if (api && api.runtime && api.runtime.onMessage) {
     api.runtime.onMessage.addListener((msg, sender, sendResponse) => {

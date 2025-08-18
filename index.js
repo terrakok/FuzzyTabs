@@ -195,7 +195,7 @@
       <div class="fsl-backdrop"></div>
       <div class="fsl-center">
         <div class="fsl-spotlight" role="dialog" aria-modal="true" aria-label="Spotlight">
-          <input id="${INPUT_ID}" type="text" autocomplete="off" placeholder="Search or run a command"/>
+          <input id="${INPUT_ID}" type="text" autocomplete="off" placeholder="Start typing something..."/>
           <ul class="fsl-results" aria-label="Open tabs"></ul>
         </div>
       </div>
@@ -228,6 +228,20 @@
 
     // Close on backdrop click
     overlay.querySelector('.fsl-backdrop').addEventListener('click', () => { log('backdrop clicked, closing overlay'); closeOverlay(); });
+
+    // Also close when clicking anywhere outside the spotlight panel (e.g., on the center area around it)
+    overlay.addEventListener('mousedown', (e) => {
+      try {
+        // Only when overlay is open
+        if (!overlay.classList.contains('open')) return;
+        const target = e.target;
+        const insideSpotlight = target && target.closest && target.closest('.fsl-spotlight');
+        if (!insideSpotlight) {
+          log('outside click detected, closing overlay');
+          closeOverlay();
+        }
+      } catch (_) {}
+    }, true);
 
     document.documentElement.appendChild(overlay);
     log('overlay injected into DOM');
