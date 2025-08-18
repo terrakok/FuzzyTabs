@@ -1,0 +1,31 @@
+{
+  "manifest_version": 2,
+  "name": "Fuzzy Spotlight",
+  "version": "1.0.0",
+  "description": "Show a Spotlight-like overlay on any site with Ctrl+Shift+U.",
+  "icons": {
+    "48": "icons/border-48.png"
+  },
+  "permissions": [
+    "tabs"
+  ],
+  "background": {
+    "scripts": ["background.js"],
+    "persistent": false
+  },
+  "commands": {
+    "toggle-spotlight": {
+      "suggested_key": {
+        "default": "Alt+Shift+U"
+      },
+      "description": "Toggle Spotlight overlay"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["index.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
