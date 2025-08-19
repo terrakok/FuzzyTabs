@@ -18,13 +18,14 @@ It runs instantly, stays out of your way, and keeps resource usage low.
 ## Motivation
 
 Firefox has a built-in search for tabs, but it's not as fast and convenient as FuzzyTabs:
-1) You have to open the search bar,
+1) You have to open the search bar
 2) type the `%` + space
-3) then type search query
+3) then type a search query
 4) select the right tab
-   **and there is no Fuzzy Search!**
 
-FuzzyTabs lets you jump to the right tab much faster.
+👻 **and there is no Fuzzy Search!**
+
+🚀 FuzzyTabs lets you jump to the right tab much faster.
 
 ## Features
 
