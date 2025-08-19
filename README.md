@@ -24,7 +24,7 @@ It runs instantly, stays out of your way, and keeps resource usage low.
 
 ## Usage
 
-Press Ctrl+Shift+I (by default) to open the popup.
+Press `Ctrl+Shift+I`/`Cmd+Shift+I` (by default) to open the popup.
 
 ## Settings
 
