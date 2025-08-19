@@ -398,14 +398,40 @@
         img.className = 'fsl-fav';
         img.alt = '';
         img.decoding = 'async';
+
+        // Helper: check if favicon URL is safe to load in a content page
+        const isSafeFaviconUrl = (url) => {
+          if (!url || typeof url !== 'string') return false;
+          // Block chrome://, about://, resource:// and similar internal schemes
+          if (/^(chrome|about|resource|moz-icon):/i.test(url)) return false;
+          // Allow http(s) and data URIs; also allow extension's own moz-extension URLs
+          if (/^(https?:|data:|moz-extension:)/i.test(url)) return true;
+          return false;
+        };
+        const getDefaultIconUrl = () => {
+          try {
+            const api = (typeof browser !== 'undefined') ? browser : chrome;
+            if (api && api.runtime && typeof api.runtime.getURL === 'function') {
+              return api.runtime.getURL('icons/ic_search.svg');
+            }
+          } catch (_) {}
+          return null;
+        };
+
         // Prefer tabs API favicon; fallback to origin favicon.ico if available
         let favicon = t.favIconUrl;
         try {
           if (!favicon && t.url) {
             const u = new URL(t.url);
-            if (u.origin && u.origin !== 'null') favicon = u.origin + '/favicon.ico';
+            if (u.origin && u.origin !== 'null' && /^https?:$/i.test(u.protocol)) {
+              favicon = u.origin + '/favicon.ico';
+            }
           }
         } catch (_) {}
+        // If favicon is unsafe (e.g., chrome://mozapps/.../extension.svg), use default icon
+        if (!isSafeFaviconUrl(favicon)) {
+          favicon = getDefaultIconUrl();
+        }
         if (favicon) img.src = favicon;
         img.addEventListener('error', () => { img.style.visibility = 'hidden'; });
 
