@@ -520,16 +520,31 @@
 
         li.appendChild(closeBtn);
 
-        // interactions: hover moves focus (only when mouse focus is enabled); click activates
+        // interactions: hover moves focus (only when mouse focus is enabled); click/mousedown activates
         li.addEventListener('mouseenter', () => {
           if (!STATE.allowMouseFocus) return;
           const idx = Array.prototype.indexOf.call(ul.children, li);
           setFocusedIndex(idx);
         });
+        // Activate early on mousedown to avoid input blur closing the overlay before click fires
+        li.addEventListener('mousedown', (ev) => {
+          try {
+            // Only react to primary button and ignore clicks on the close button
+            if (ev.button !== 0) return;
+            if (ev.target && ev.target.closest && ev.target.closest('.fsl-close')) return;
+            ev.preventDefault();
+            const tabId = t.id;
+            if (tabId != null) activateTabById(tabId);
+          } catch (_) {}
+        });
+        // Fallback activation on click (in case mousedown was prevented by the page)
         li.addEventListener('click', (ev) => {
-          ev.preventDefault();
-          const tabId = t.id;
-          if (tabId != null) activateTabById(tabId);
+          try {
+            if (ev.target && ev.target.closest && ev.target.closest('.fsl-close')) return;
+            ev.preventDefault();
+            const tabId = t.id;
+            if (tabId != null) activateTabById(tabId);
+          } catch (_) {}
         });
 
         ul.appendChild(li);
