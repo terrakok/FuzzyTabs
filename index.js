@@ -272,12 +272,12 @@
         closeOverlay();
         return;
       }
-      if (e.key === 'ArrowDown') {
+      if (e.key === 'ArrowDown' || (e.ctrlKey && (e.key === 'n' || e.key === 'N'))) {
         e.preventDefault();
         moveFocus(1);
         return;
       }
-      if (e.key === 'ArrowUp') {
+      if (e.key === 'ArrowUp' || (e.ctrlKey && (e.key === 'p' || e.key === 'P'))) {
         e.preventDefault();
         moveFocus(-1);
         return;

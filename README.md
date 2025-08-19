@@ -24,7 +24,9 @@ It runs instantly, stays out of your way, and keeps resource usage low.
 
 ## Usage
 
-Press `Ctrl+Shift+I`/`Cmd+Shift+I` (by default) to open the popup.
+- Open: `Ctrl+Shift+I` / `Cmd+Shift+I` (by default)
+- Navigate: Arrow Up/Down or `Ctrl+N` / `Ctrl+P`
+- Activate selected tab: Enter
 
 ## Settings
 
