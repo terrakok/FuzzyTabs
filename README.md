@@ -26,7 +26,9 @@ It runs instantly, stays out of your way, and keeps resource usage low.
 
 - Open: `Ctrl+Shift+I` / `Cmd+Shift+I` (by default)
 - Navigate: Arrow Up/Down or `Ctrl+N` / `Ctrl+P`
-- Activate selected tab: Enter
+- Activate the selected tab: Enter
+- Close the selected tab: `Ctrl+W` (macOS) / `Alt+W` (Linux/Windows)
+  Note that it's not possible to override the default close tab shortcut, so we use non-standard shortcuts.
 
 ## Settings
 

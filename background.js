@@ -91,6 +91,28 @@
           } else {
             sendResponse({ ok: false, error: 'Invalid tabId' });
           }
+        } else if (msg.type === 'close-tab') {
+          const tabId = msg && msg.tabId;
+          if (typeof tabId === 'number') {
+            log('close-tab request', { tabId });
+            try {
+              api.tabs.remove(tabId, () => {
+                const err = api.runtime && api.runtime.lastError;
+                if (err) {
+                  log('tabs.remove error', err);
+                  sendResponse({ ok: false, error: String(err && err.message || err) });
+                } else {
+                  sendResponse({ ok: true });
+                }
+              });
+              return true; // async
+            } catch (e) {
+              log('tabs.remove threw', e);
+              sendResponse({ ok: false, error: String(e) });
+            }
+          } else {
+            sendResponse({ ok: false, error: 'Invalid tabId' });
+          }
         }
       } catch (e) {
         log('onMessage handler error', e);

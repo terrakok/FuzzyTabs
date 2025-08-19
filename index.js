@@ -222,6 +222,12 @@
       #${OVERLAY_ID} .fsl-results li.focused .fsl-arrow { opacity: 1; }
       #${OVERLAY_ID} .fsl-results li.focused { background: rgba(255,255,255,0.08); }
       #${OVERLAY_ID} .fsl-hl { color: #ffe08a; font-weight: 700; }
+      #${OVERLAY_ID} .fsl-results li .fsl-close { margin-left: auto; flex: 0 0 auto; width: 16px; height: 16px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; color: rgba(255,255,255,0.65); opacity: 0; cursor: pointer; user-select: none; background: transparent; border: 1px solid rgba(255,255,255,0.06); transition: opacity 120ms ease, background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease; }
+      #${OVERLAY_ID} .fsl-results li.focused .fsl-close, #${OVERLAY_ID} .fsl-results li:hover .fsl-close { opacity: 1; }
+      #${OVERLAY_ID} .fsl-results li .fsl-close:hover { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.10); }
+      #${OVERLAY_ID} .fsl-results li .fsl-close:active { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.14); }
+      #${OVERLAY_ID} .fsl-results li .fsl-close:focus-visible { outline: none; box-shadow: 0 0 0 2px rgba(255,255,255,0.12); }
+      #${OVERLAY_ID} .fsl-results li .fsl-close svg { width: 10px; height: 10px; display: block; }
     `;
 
     overlay.appendChild(style);
@@ -295,6 +301,46 @@
             activateTabById(parseInt(tabId, 10));
           }
         }
+        return;
+      }
+      // Ctrl/Cmd+W closes the focused tab from the list (not the browser tab)
+      const isMac = navigator.platform && /Mac/i.test(navigator.platform);
+      if ((e.key === 'w' || e.key === 'W') && (e.ctrlKey && isMac || e.altKey && !isMac)) {
+        const { ul } = getOverlayElements();
+        if (!ul) return;
+        const items = Array.from(ul.querySelectorAll('li'));
+        if (STATE.focusedIndex >= 0 && items[STATE.focusedIndex]) {
+          const li = items[STATE.focusedIndex];
+          const tabIdStr = li && li.getAttribute('data-tab-id');
+          if (tabIdStr) {
+            e.preventDefault();
+            e.stopPropagation();
+            const tabId = parseInt(tabIdStr, 10);
+            try {
+              const api = (typeof browser !== 'undefined') ? browser : chrome;
+              api.runtime.sendMessage({ type: 'close-tab', tabId }, (resp) => {
+                // Optimistically remove the item from the list
+                try {
+                  li.remove();
+                  const remaining = Array.from(ul.querySelectorAll('li'));
+                  // Update STATE.tabs and STATE.allTabs to reflect removal
+                  STATE.tabs = STATE.tabs.filter(t => t.id !== tabId);
+                  STATE.allTabs = STATE.allTabs.filter(t => t.id !== tabId);
+                  // Adjust focus to a sensible item
+                  if (remaining.length > 0) {
+                    const nextIndex = Math.min(STATE.focusedIndex, remaining.length - 1);
+                    STATE.focusedIndex = -1; // will be set by setFocusedIndex
+                    setFocusedIndex(nextIndex);
+                  } else {
+                    // No items left; show empty message
+                    computeResultsAndRender();
+                  }
+                } catch (_) {}
+              });
+            } catch (_) {}
+          }
+        }
+        return;
       }
     }, true);
 
@@ -377,6 +423,52 @@
         li.appendChild(img);
         li.appendChild(titleSpan);
         li.appendChild(urlSpan);
+
+        // close (cross) button on the right
+        const closeBtn = document.createElement('button');
+        closeBtn.className = 'fsl-close';
+        closeBtn.type = 'button';
+        // SVG cross icon
+        // Ensure the cross is visible by explicitly disabling fill and using rounded joins
+        closeBtn.innerHTML = '<svg viewBox="0 0 12 12" aria-hidden="true" focusable="false"><path d="M3 3 L9 9 M9 3 L3 9" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></svg>';
+        // Tooltip with platform-specific hotkey
+        const isMac = navigator.platform && /Mac/i.test(navigator.platform);
+        closeBtn.title = isMac ? 'Ctrl+W' : 'Alt+W';
+        // Prevent list item activation and focus changes on clicking cross
+        const handleClose = (ev) => {
+          ev.preventDefault();
+          ev.stopPropagation();
+          const tabId = t.id;
+          if (typeof tabId !== 'number') return;
+          try {
+            const api = (typeof browser !== 'undefined') ? browser : chrome;
+            api.runtime.sendMessage({ type: 'close-tab', tabId }, () => {
+              try {
+                // Remove li and update state similarly to keyboard path
+                const currentUl = ul;
+                li.remove();
+                const remaining = Array.from(currentUl.querySelectorAll('li'));
+                STATE.tabs = STATE.tabs.filter(tt => tt.id !== tabId);
+                STATE.allTabs = STATE.allTabs.filter(tt => tt.id !== tabId);
+                if (remaining.length > 0) {
+                  const idx = Math.min(STATE.focusedIndex, remaining.length - 1);
+                  STATE.focusedIndex = -1;
+                  setFocusedIndex(idx);
+                } else {
+                  computeResultsAndRender();
+                }
+              } catch (_) {}
+            });
+          } catch (_) {}
+        };
+        closeBtn.addEventListener('click', handleClose);
+        // Make sure hovering the button keeps the parent li focused
+        closeBtn.addEventListener('mouseenter', () => {
+          const idx = Array.prototype.indexOf.call(ul.children, li);
+          setFocusedIndex(idx);
+        });
+
+        li.appendChild(closeBtn);
 
         // interactions: hover moves focus; click activates
         li.addEventListener('mouseenter', () => {
