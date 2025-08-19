@@ -2,8 +2,8 @@ name: Build ZIP
 
 on:
   push:
-    branches:
-      - master
+    tags:
+      - 'v*'
 
 permissions:
   contents: write
