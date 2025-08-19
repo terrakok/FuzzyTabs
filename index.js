@@ -56,111 +56,19 @@
     } catch (_) {}
   }
 
-  // --- Fuzzy search helpers ---
-  function isWordBoundary(prevChar) {
-    const sepRe = /[\s\-_.\/\\()\[\]{}<>\"'`~!@#$%^&*+=|,:;?]/;
-    return !prevChar || sepRe.test(prevChar);
-  }
-
-  function fuzzyMatch(query, candidate) {
-    if (!query) return { matched: true, score: 0, indexes: [] };
-    if (!candidate) return { matched: false, score: -Infinity, indexes: [] };
-    const q = query.toLowerCase();
-    const s = candidate.toLowerCase();
-    let qi = 0;
-    let score = 0;
-    const idx = [];
-    let lastMatchPos = -1;
-    let streak = 0;
-    for (let si = 0; si < s.length && qi < q.length; si++) {
-      if (s[si] === q[qi]) {
-        idx.push(si);
-        // Base point
-        score += 1;
-        // Consecutive bonus
-        if (lastMatchPos === si - 1) {
-          streak += 1;
-          score += 0.5 + Math.min(streak * 0.05, 0.3);
-        } else {
-          streak = 0;
-        }
-        // Word boundary / start bonus
-        const prev = si > 0 ? candidate[si - 1] : '';
-        if (isWordBoundary(prev)) score += 0.7;
-        // Early position bonus
-        score += Math.max(0, 1.2 - si * 0.01);
-        lastMatchPos = si;
-        qi++;
-      }
-    }
-    const matched = qi === q.length;
-    if (!matched) return { matched: false, score: -Infinity, indexes: [] };
-    // Prefer shorter gaps (compactness)
-    if (idx.length > 1) {
-      let gaps = 0;
-      for (let i = 1; i < idx.length; i++) gaps += idx[i] - idx[i - 1] - 1;
-      score -= gaps * 0.02;
-    }
-    return { matched: true, score, indexes: idx };
-  }
-
-  function rangesFromIndexes(indexes) {
-    if (!indexes || !indexes.length) return [];
-    const ranges = [];
-    let start = indexes[0];
-    let prev = indexes[0];
-    for (let i = 1; i < indexes.length; i++) {
-      if (indexes[i] === prev + 1) {
-        prev = indexes[i];
-      } else {
-        ranges.push([start, prev + 1]);
-        start = indexes[i];
-        prev = indexes[i];
-      }
-    }
-    ranges.push([start, prev + 1]);
-    return ranges;
-  }
-
-  function buildHighlightedSpan(text, indexes) {
-    const ranges = rangesFromIndexes(indexes);
+  function buildHighlightedSpan(text, ranges) {
     const span = document.createElement('span');
     let pos = 0;
     for (const [a, b] of ranges) {
       if (a > pos) span.appendChild(document.createTextNode(text.slice(pos, a)));
       const mark = document.createElement('span');
       mark.className = 'fsl-hl';
-      mark.textContent = text.slice(a, b);
+      mark.textContent = text.slice(a, b + 1);
       span.appendChild(mark);
-      pos = b;
+      pos = b + 1;
     }
     if (pos < text.length) span.appendChild(document.createTextNode(text.slice(pos)));
     return span;
-  }
-
-  function scoreTab(query, tab) {
-    const title = (tab.title && tab.title.trim()) ? tab.title : '';
-    const url = tab.url || '';
-    const mt = fuzzyMatch(query, title);
-    const mu = fuzzyMatch(query, url);
-    // Weight title higher than URL
-    let score = (mt.matched ? mt.score * 2.2 : -Infinity);
-    let titleIdx = mt.matched ? mt.indexes : [];
-    let urlIdx = [];
-    if (mu.matched) {
-      const urlScore = mu.score * 1.2;
-      if (!mt.matched) {
-        score = urlScore;
-        urlIdx = mu.indexes;
-      } else {
-        // If both match, combine a bit and keep title highlight, but also keep URL indexes
-        score = Math.max(score, urlScore) + 0.2; // small combo bonus
-        urlIdx = mu.indexes;
-      }
-    }
-    // Active tab small boost
-    if (tab.active) score += 0.15;
-    return { score, titleIdx, urlIdx, matched: (mt.matched || mu.matched) };
   }
 
   function computeResultsAndRender() {
@@ -170,16 +78,15 @@
     STATE.query = q;
     if (!q) {
       // No query: show all tabs in original order
-      renderTabsList(STATE.allTabs.map(t => ({ tab: t }))); 
+      renderTabsList(STATE.allTabs.map(t => ({ item: t })));
       return;
     }
-    const results = [];
-    for (const t of STATE.allTabs) {
-      const r = scoreTab(q, t);
-      if (r.matched) results.push({ tab: t, score: r.score, titleIdx: r.titleIdx, urlIdx: r.urlIdx });
-    }
-    results.sort((a, b) => b.score - a.score);
-    renderTabsList(results);
+
+    const fuzzySearch = window.Microfuzz.createFuzzySearch(STATE.allTabs, {
+        getText: (item) => [item.title, item.url]
+    })
+    const fuzzySearchResults = fuzzySearch(q)
+    renderTabsList(fuzzySearchResults);
   }
 
   function createOverlay() {
@@ -384,16 +291,10 @@
       if (!ul) return;
       ul.innerHTML = '';
 
-      // Normalize items to { tab, titleIdx?, urlIdx? }
-      const normalized = (Array.isArray(items) ? items : []).map(it => {
-        if (it && it.tab) return it;
-        return { tab: it };
-      });
-
-      STATE.tabs = normalized.map(n => n.tab);
+      STATE.tabs = items.map(n => n.item);
       STATE.focusedIndex = -1;
 
-      if (!normalized.length) {
+      if (!items.length) {
         const li = document.createElement('li');
         li.textContent = STATE.query ? 'No results' : 'No tabs available';
         li.style.color = 'rgba(255,255,255,0.6)';
@@ -401,8 +302,8 @@
         return;
       }
 
-      for (let i = 0; i < normalized.length; i++) {
-        const { tab: t, titleIdx, urlIdx } = normalized[i];
+      for (let i = 0; i < items.length; i++) {
+        const { item: t, matches } = items[i];
         const li = document.createElement('li');
         li.setAttribute('data-tab-id', String(t.id));
         li.setAttribute('role', 'option');
@@ -459,8 +360,9 @@
         const titleSpan = document.createElement('span');
         titleSpan.className = 'fsl-title';
         const titleText = (t.title && t.title.trim()) ? t.title : (t.url || 'Untitled');
-        if (STATE.query && titleIdx && titleIdx.length) {
-          titleSpan.appendChild(buildHighlightedSpan(titleText, titleIdx));
+        if (STATE.query && matches && matches[0]) {
+          const titleMatches = matches[0]
+          titleSpan.appendChild(buildHighlightedSpan(titleText, titleMatches));
         } else {
           titleSpan.textContent = titleText;
         }
@@ -468,8 +370,9 @@
         const urlSpan = document.createElement('span');
         urlSpan.className = 'fsl-url';
         const urlText = t.url || '';
-        if (STATE.query && urlIdx && urlIdx.length) {
-          urlSpan.appendChild(buildHighlightedSpan(urlText, urlIdx));
+        if (STATE.query && matches && matches[1]) {
+          const urlMatches = matches[1]
+          urlSpan.appendChild(buildHighlightedSpan(urlText, urlMatches));
         } else {
           urlSpan.textContent = urlText;
         }

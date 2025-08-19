@@ -51,13 +51,12 @@ Firefox has a built-in search for tabs, but it's not as fast and convenient as F
 
 ## Dev Installation
 
-- download the latest release from [releases](https://github.com/terrakok/fuzzytabs/releases)
-- open `about:addons`
-- go to `about:addons`
-- click on `gear` icone
-- select `Debug add-ons`
-- select `Load Temporary Add-on`
-- open the downloaded zip file
+- Download the latest release from [releases](https://github.com/terrakok/fuzzytabs/releases)
+- In Firefox: open `about:addons`
+- Click on the gear icon
+- Select `Debug add-ons`
+- Select `Load Temporary Add-on`
+- Open the downloaded `extension.zip`
 
 ## Support
 
