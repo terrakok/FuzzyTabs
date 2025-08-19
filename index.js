@@ -6,7 +6,7 @@
   log('content script loaded', { url: location.href });
 
   // State for results navigation
-  const STATE = { allTabs: [], tabs: [], focusedIndex: -1, query: '', hoverEnabled: true };
+  const STATE = { allTabs: [], tabs: [], focusedIndex: -1, query: '' };
 
   function getOverlayElements() {
     const overlay = document.getElementById(OVERLAY_ID) || createOverlay();
@@ -369,8 +369,6 @@
         li.textContent = STATE.query ? 'No results' : 'No tabs available';
         li.style.color = 'rgba(255,255,255,0.6)';
         ul.appendChild(li);
-        // Even with no items, re-enable hover handling after initial render phase
-        Promise.resolve().then(() => { STATE.hoverEnabled = true; });
         return;
       }
 
@@ -466,7 +464,6 @@
         closeBtn.addEventListener('click', handleClose);
         // Make sure hovering the button keeps the parent li focused
         closeBtn.addEventListener('mouseenter', () => {
-          if (!STATE.hoverEnabled) return;
           const idx = Array.prototype.indexOf.call(ul.children, li);
           setFocusedIndex(idx);
         });
@@ -475,7 +472,6 @@
 
         // interactions: hover moves focus; click activates
         li.addEventListener('mouseenter', () => {
-          if (!STATE.hoverEnabled) return;
           const idx = Array.prototype.indexOf.call(ul.children, li);
           setFocusedIndex(idx);
         });
@@ -489,8 +485,6 @@
       }
       // initialize focus to the first item
       setFocusedIndex(0);
-      // Now that initial focus is set, enable hover-driven focusing
-      setTimeout(() => { STATE.hoverEnabled = true; }, 5);
     } catch (e) {
       log('renderTabsList error', e);
     }
@@ -524,8 +518,6 @@
     const overlay = createOverlay();
     overlay.classList.add('open');
     overlay.setAttribute('aria-hidden', 'false');
-    // Temporarily disable hover-driven focus to ensure first item is focused on open
-    STATE.hoverEnabled = false;
     const input = overlay.querySelector('#' + CSS.escape(INPUT_ID));
     if (input) {
       log('focusing input');
@@ -540,18 +532,6 @@
     log('closeOverlay');
     const overlay = document.getElementById(OVERLAY_ID);
     if (!overlay) return;
-    // Clear any focused state in the list and reset index
-    try {
-      const ul = overlay.querySelector('.fsl-results');
-      if (ul) {
-        const focusedItems = Array.from(ul.querySelectorAll('li.focused'));
-        for (const li of focusedItems) {
-          li.classList.remove('focused');
-          li.setAttribute('aria-selected', 'false');
-        }
-      }
-      STATE.focusedIndex = -1;
-    } catch (_) {}
     overlay.classList.remove('open');
     overlay.setAttribute('aria-hidden', 'true');
   }
