@@ -15,7 +15,7 @@ jobs:
           fetch-depth: 0
 
       - name: Build
-        run: ./build.sh
+        run: chmod +x ./build.sh && ./build.sh
 
       - name: Upload ZIP
         uses: svenstaro/upload-release-action@v2
