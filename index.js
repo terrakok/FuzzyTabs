@@ -115,7 +115,7 @@
       #${OVERLAY_ID} * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
       #${OVERLAY_ID} .fsl-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.25); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
       #${OVERLAY_ID} .fsl-center { position: absolute; inset: 0; display: flex; align-items: flex-start; justify-content: center; padding-top: 15vh; }
-      #${OVERLAY_ID} .fsl-spotlight { width: min(680px, calc(100vw - 32px)); background: rgba(34,34,36,0.92); color: #fff; border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,0.35), 0 2px 8px rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.08); padding: 14px 18px; }
+      #${OVERLAY_ID} .fsl-spotlight { width: min(900px, calc(100vw - 32px)); background: rgba(34,34,36,0.92); color: #fff; border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,0.35), 0 2px 8px rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.08); padding: 14px 18px; }
       #${OVERLAY_ID} .fsl-spotlight input { width: 100%; background: transparent; border: none; outline: none; font-size: 20px; color: #fff; caret-color: #66d9ef; }
       #${OVERLAY_ID} .fsl-spotlight input::placeholder { color: rgba(255,255,255,0.55); }
       #${OVERLAY_ID} .fsl-results { margin: 8px 0 0; padding: 4px 0 0; list-style: none; max-height: 50vh; overflow-y: auto; border-top: 1px solid rgba(255,255,255,0.08); }
