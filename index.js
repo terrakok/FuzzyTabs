@@ -256,6 +256,26 @@
     const inputEl = overlay.querySelector('#' + CSS.escape(INPUT_ID));
     if (inputEl) {
       inputEl.addEventListener('input', () => computeResultsAndRender());
+      // If Vimium or other extensions steal focus from the input on Escape (blurring it),
+      // ensure that leaving the overlay closes it to match expected UX.
+      inputEl.addEventListener('blur', (ev) => {
+        try {
+          if (!overlay.classList.contains('open')) return;
+          const next = ev.relatedTarget;
+          const stillInside = next && next.closest && next.closest('#' + CSS.escape(OVERLAY_ID));
+          if (stillInside) return;
+          // Defer to allow any immediate focus changes. If focus ends up outside the overlay, close it.
+          setTimeout(() => {
+            if (!overlay.classList.contains('open')) return;
+            const ae = document.activeElement;
+            const insideNow = ae && ae.closest && ae.closest('#' + CSS.escape(OVERLAY_ID));
+            if (!insideNow) {
+              log('Input blurred away from overlay, closing overlay');
+              closeOverlay();
+            }
+          }, 0);
+        } catch (_) {}
+      }, true);
     }
 
     // Prevent page scroll while open
