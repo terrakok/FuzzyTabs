@@ -256,6 +256,26 @@
     const inputEl = overlay.querySelector('#' + CSS.escape(INPUT_ID));
     if (inputEl) {
       inputEl.addEventListener('input', () => computeResultsAndRender());
+      // If Vimium or other extensions steal focus from the input on Escape (blurring it),
+      // ensure that leaving the overlay closes it to match expected UX.
+      inputEl.addEventListener('blur', (ev) => {
+        try {
+          if (!overlay.classList.contains('open')) return;
+          const next = ev.relatedTarget;
+          const stillInside = next && next.closest && next.closest('#' + CSS.escape(OVERLAY_ID));
+          if (stillInside) return;
+          // Defer to allow any immediate focus changes. If focus ends up outside the overlay, close it.
+          setTimeout(() => {
+            if (!overlay.classList.contains('open')) return;
+            const ae = document.activeElement;
+            const insideNow = ae && ae.closest && ae.closest('#' + CSS.escape(OVERLAY_ID));
+            if (!insideNow) {
+              log('Input blurred away from overlay, closing overlay');
+              closeOverlay();
+            }
+          }, 0);
+        } catch (_) {}
+      }, true);
     }
 
     // Prevent page scroll while open
@@ -500,16 +520,31 @@
 
         li.appendChild(closeBtn);
 
-        // interactions: hover moves focus (only when mouse focus is enabled); click activates
+        // interactions: hover moves focus (only when mouse focus is enabled); click/mousedown activates
         li.addEventListener('mouseenter', () => {
           if (!STATE.allowMouseFocus) return;
           const idx = Array.prototype.indexOf.call(ul.children, li);
           setFocusedIndex(idx);
         });
+        // Activate early on mousedown to avoid input blur closing the overlay before click fires
+        li.addEventListener('mousedown', (ev) => {
+          try {
+            // Only react to primary button and ignore clicks on the close button
+            if (ev.button !== 0) return;
+            if (ev.target && ev.target.closest && ev.target.closest('.fsl-close')) return;
+            ev.preventDefault();
+            const tabId = t.id;
+            if (tabId != null) activateTabById(tabId);
+          } catch (_) {}
+        });
+        // Fallback activation on click (in case mousedown was prevented by the page)
         li.addEventListener('click', (ev) => {
-          ev.preventDefault();
-          const tabId = t.id;
-          if (tabId != null) activateTabById(tabId);
+          try {
+            if (ev.target && ev.target.closest && ev.target.closest('.fsl-close')) return;
+            ev.preventDefault();
+            const tabId = t.id;
+            if (tabId != null) activateTabById(tabId);
+          } catch (_) {}
         });
 
         ul.appendChild(li);
