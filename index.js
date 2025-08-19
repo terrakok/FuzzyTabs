@@ -6,7 +6,7 @@
   log('content script loaded', { url: location.href });
 
   // State for results navigation
-  const STATE = { allTabs: [], tabs: [], focusedIndex: -1, query: '' };
+  const STATE = { allTabs: [], tabs: [], focusedIndex: -1, query: '', allowMouseFocus: false };
 
   function getOverlayElements() {
     const overlay = document.getElementById(OVERLAY_ID) || createOverlay();
@@ -223,7 +223,7 @@
       #${OVERLAY_ID} .fsl-results li.focused { background: rgba(255,255,255,0.08); }
       #${OVERLAY_ID} .fsl-hl { color: #ffe08a; font-weight: 700; }
       #${OVERLAY_ID} .fsl-results li .fsl-close { margin-left: auto; flex: 0 0 auto; width: 16px; height: 16px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; color: rgba(255,255,255,0.65); opacity: 0; cursor: pointer; user-select: none; background: transparent; border: 1px solid rgba(255,255,255,0.06); transition: opacity 120ms ease, background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease; }
-      #${OVERLAY_ID} .fsl-results li.focused .fsl-close, #${OVERLAY_ID} .fsl-results li:hover .fsl-close { opacity: 1; }
+      #${OVERLAY_ID} .fsl-results li.focused .fsl-close { opacity: 1; }
       #${OVERLAY_ID} .fsl-results li .fsl-close:hover { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.10); }
       #${OVERLAY_ID} .fsl-results li .fsl-close:active { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.14); }
       #${OVERLAY_ID} .fsl-results li .fsl-close:focus-visible { outline: none; box-shadow: 0 0 0 2px rgba(255,255,255,0.12); }
@@ -268,10 +268,19 @@
     });
     observer.observe(overlay, { attributes: true, attributeFilter: ['class'] });
 
+    // Enable mouse-driven focusing only after actual mouse movement while overlay is open
+    document.addEventListener('mousemove', () => {
+      if (overlay.classList.contains('open')) {
+        STATE.allowMouseFocus = true;
+      }
+    }, true);
+
     // Keyboard handling when overlay is open
     document.addEventListener('keydown', (e) => {
       const isOpen = overlay.classList.contains('open');
       if (!isOpen) return;
+      // Any key press disables mouse-driven focusing until the mouse moves again
+      STATE.allowMouseFocus = false;
       if (e.key === 'Escape') {
         log('Escape pressed, closing overlay');
         e.preventDefault();
@@ -462,16 +471,12 @@
           } catch (_) {}
         };
         closeBtn.addEventListener('click', handleClose);
-        // Make sure hovering the button keeps the parent li focused
-        closeBtn.addEventListener('mouseenter', () => {
-          const idx = Array.prototype.indexOf.call(ul.children, li);
-          setFocusedIndex(idx);
-        });
 
         li.appendChild(closeBtn);
 
-        // interactions: hover moves focus; click activates
+        // interactions: hover moves focus (only when mouse focus is enabled); click activates
         li.addEventListener('mouseenter', () => {
+          if (!STATE.allowMouseFocus) return;
           const idx = Array.prototype.indexOf.call(ul.children, li);
           setFocusedIndex(idx);
         });
@@ -518,6 +523,8 @@
     const overlay = createOverlay();
     overlay.classList.add('open');
     overlay.setAttribute('aria-hidden', 'false');
+    // On open, require a fresh mouse move to enable hover focusing
+    STATE.allowMouseFocus = false;
     const input = overlay.querySelector('#' + CSS.escape(INPUT_ID));
     if (input) {
       log('focusing input');
@@ -534,6 +541,8 @@
     if (!overlay) return;
     overlay.classList.remove('open');
     overlay.setAttribute('aria-hidden', 'true');
+    // Reset mouse focus state when closing
+    STATE.allowMouseFocus = false;
   }
 
   function toggleOverlay() {
