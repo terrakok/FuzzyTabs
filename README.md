@@ -36,7 +36,7 @@ Firefox has a built-in search for tabs, but it's not as fast and convenient as F
 
 ## Usage
 
-- Open: `Ctrl+Shift+I` / `Cmd+Shift+I` (by default)
+- Open: Click the FuzzyTabs toolbar button
 - Navigate: Arrow Up/Down or `Ctrl+N` / `Ctrl+P`
 - Activate the selected tab: Enter
 - Close the selected tab: `Ctrl+W` (macOS) / `Alt+W` (Linux/Windows)
