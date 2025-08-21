@@ -289,7 +289,7 @@
     if (input) {
       log('focusing input');
       input.value = '';
-      setTimeout(() => input.focus(), 0);
+      setTimeout(() => input.focus(), 50);
       input.addEventListener('input', () => computeResultsAndRender());
     }
 
