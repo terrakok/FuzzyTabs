@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Create ZIP archive with required files
-zip -r extension.zip icons/ background.js microfuzz.bundle.js index.js manifest.json
+zip -r extension.zip icons/ background.js microfuzz.bundle.js app.js app.html app.css manifest.json
 
 # Check if zip command was successful
 if [ $? -eq 0 ]; then
