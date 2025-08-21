@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "FuzzyTabs",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Fuzzy-search through opened tabs",
   "icons": {
     "48": "icons/ic_search.svg"
