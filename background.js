@@ -40,52 +40,7 @@
     }
   }
 
-  function sendToggleToActiveTab() {
-    try {
-      log('querying active tab');
-      api.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        const targetTabs = tabs || [];
-        log('tabs query result', { count: targetTabs.length });
-        for (const tab of targetTabs) {
-          if (!tab.id) continue;
-          try {
-            log('sending message to tab', { id: tab.id, url: tab.url });
-            api.tabs.sendMessage(tab.id, { type: 'toggle-spotlight' });
-          } catch (e) {
-            log('failed to send message to tab', { id: tab && tab.id, error: e });
-            // ignore failures (e.g., no content script on the page like about: pages)
-          }
-        }
-      });
-    } catch (e) {
-      log('error in sendToggleToActiveTab', e);
-      // noop
-    }
-  }
 
-  if (api && api.commands && api.commands.onCommand) {
-    log('registering commands.onCommand listener');
-    api.commands.onCommand.addListener((command) => {
-      log('command received', { command });
-      if (command === 'toggle-spotlight') {
-        sendToggleToActiveTab();
-      }
-    });
-  } else {
-    log('commands API not available');
-  }
-
-  // Open overlay when the toolbar icon is clicked (MV2: browserAction)
-  try {
-    if (api && api.browserAction && api.browserAction.onClicked) {
-      log('registering browserAction.onClicked listener');
-      api.browserAction.onClicked.addListener(() => {
-        sendToggleToActiveTab();
-      });
-    }
-  } catch (e) {
-    log('failed to register browserAction.onClicked', e);
-  }
 
   // Handle messages from content scripts
   if (api && api.runtime && api.runtime.onMessage) {

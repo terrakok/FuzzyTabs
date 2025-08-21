@@ -9,7 +9,7 @@
   "browser_action": {
     "default_title": "FuzzyTabs",
     "default_icon": "icons/ic_search.svg",
-    "default_popup": "popup.html"
+    "default_popup": "app.html"
   },
   "permissions": [
     "tabs"

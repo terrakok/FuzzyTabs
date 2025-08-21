@@ -4,12 +4,6 @@
   const DEBUG = false;
   const log = (...args) => { if (!DEBUG) return; try { console.debug('[FuzzySpotlight][content]', ...args); } catch (_) {} };
   log('content script loaded', { url: location.href });
-  const IS_EXTENSION_PAGE = (() => {
-    try {
-      const p = String((location && location.protocol) || '');
-      return /^chrome-extension:$/i.test(p) || /^moz-extension:$/i.test(p);
-    } catch (_) { return false; }
-  })();
 
   // State for results navigation
   const STATE = { allTabs: [], tabs: [], focusedIndex: -1, query: '', allowMouseFocus: false };
@@ -107,95 +101,20 @@
     // Shadow DOM host content
     const root = overlay.attachShadow ? overlay.attachShadow({ mode: 'open' }) : overlay;
 
-    if (IS_EXTENSION_PAGE) {
       // Full-page layout inside the extension page (no backdrop, no centered popup)
       root.innerHTML = `
-        <style>
-          :host { position: fixed; inset: 0; z-index: 2147483647; display: none; }
-          :host(.open) { display: block; }
-          *, *::before, *::after { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
-          .fsl-page { position: absolute; inset: 0; display: flex; flex-direction: column; background: #222224; color: #fff; padding: 14px 18px; }
-          .fsl-page input { width: 100%; background: transparent; border: none; outline: none; font-size: 20px; color: #fff; caret-color: #66d9ef; }
-          .fsl-page input::placeholder { color: rgba(255,255,255,0.55); }
-          .fsl-results { margin: 8px 0 0; padding: 4px 0 0; list-style: none; flex: 1 1 auto; overflow-y: auto; border-top: 1px solid rgba(255,255,255,0.08); }
-          .fsl-results li { display: flex; align-items: center; gap: 8px; padding: 8px 6px; font-size: 14px; line-height: 1.35; color: rgba(255,255,255,0.9); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-          .fsl-results li:nth-child(odd) { background: rgba(255,255,255,0.03); }
-          .fsl-fav { width: 16px; height: 16px; flex: 0 0 16px; border-radius: 2px; background: rgba(255,255,255,0.1); }
-          .fsl-title { font-weight: 500; margin-right: 6px; overflow: hidden; text-overflow: ellipsis; }
-          .fsl-url { color: rgba(255,255,255,0.65); font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
-          .fsl-results li { position: relative; }
-          .fsl-results li .fsl-arrow { width: 10px; flex: 0 0 10px; color: #fff; opacity: 0; }
-          .fsl-results li.focused .fsl-arrow { opacity: 1; }
-          .fsl-results li.focused { background: rgba(255,255,255,0.08); }
-          .fsl-hl { color: #ffe08a; font-weight: 700; }
-          .fsl-results li .fsl-close { margin-left: auto; flex: 0 0 auto; width: 16px; height: 16px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; color: rgba(255,255,255,0.65); opacity: 0; cursor: pointer; user-select: none; background: transparent; border: 1px solid rgba(255,255,255,0.06); transition: opacity 120ms ease, background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease; }
-          .fsl-results li.focused .fsl-close { opacity: 1; }
-          .fsl-results li .fsl-close:hover { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.10); }
-          .fsl-results li .fsl-close:active { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.14); }
-          .fsl-results li .fsl-close:focus-visible { outline: none; box-shadow: 0 0 0 2px rgba(255,255,255,0.12); }
-          .fsl-results li .fsl-close svg { width: 10px; height: 10px; display: block; }
-        </style>
         <div class="fsl-page" role="application" aria-label="FuzzyTabs">
           <input id="${INPUT_ID}" type="text" autocomplete="off" placeholder="Start typing something..."/>
           <ul class="fsl-results" aria-label="Open tabs"></ul>
         </div>
       `;
-    } else {
-      // In-page overlay for content pages
-      root.innerHTML = `
-        <style>
-          :host { position: fixed; inset: 0; z-index: 2147483647; display: none; }
-          :host(.open) { display: block; }
-          *, *::before, *::after { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
-          .fsl-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.25); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
-          .fsl-center { position: absolute; inset: 0; display: flex; align-items: flex-start; justify-content: center; padding-top: 15vh; }
-          .fsl-spotlight { width: min(900px, calc(100vw - 32px)); background: rgba(34,34,36,0.92); color: #fff; border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,0.35), 0 2px 8px rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.08); padding: 14px 18px; }
-          .fsl-spotlight input { width: 100%; background: transparent; border: none; outline: none; font-size: 20px; color: #fff; caret-color: #66d9ef; }
-          .fsl-spotlight input::placeholder { color: rgba(255,255,255,0.55); }
-          .fsl-results { margin: 8px 0 0; padding: 4px 0 0; list-style: none; max-height: 50vh; overflow-y: auto; border-top: 1px solid rgba(255,255,255,0.08); }
-          .fsl-results li { display: flex; align-items: center; gap: 8px; padding: 8px 6px; font-size: 14px; line-height: 1.35; color: rgba(255,255,255,0.9); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-          .fsl-results li:nth-child(odd) { background: rgba(255,255,255,0.03); }
-          .fsl-fav { width: 16px; height: 16px; flex: 0 0 16px; border-radius: 2px; background: rgba(255,255,255,0.1); }
-          .fsl-title { font-weight: 500; margin-right: 6px; overflow: hidden; text-overflow: ellipsis; }
-          .fsl-url { color: rgba(255,255,255,0.65); font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
-          .fsl-results li { position: relative; }
-          .fsl-results li .fsl-arrow { width: 10px; flex: 0 0 10px; color: #fff; opacity: 0; }
-          .fsl-results li.focused .fsl-arrow { opacity: 1; }
-          .fsl-results li.focused { background: rgba(255,255,255,0.08); }
-          .fsl-hl { color: #ffe08a; font-weight: 700; }
-          .fsl-results li .fsl-close { margin-left: auto; flex: 0 0 auto; width: 16px; height: 16px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; color: rgba(255,255,255,0.65); opacity: 0; cursor: pointer; user-select: none; background: transparent; border: 1px solid rgba(255,255,255,0.06); transition: opacity 120ms ease, background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease; }
-          .fsl-results li.focused .fsl-close { opacity: 1; }
-          .fsl-results li .fsl-close:hover { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.10); }
-          .fsl-results li .fsl-close:active { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.14); }
-          .fsl-results li .fsl-close:focus-visible { outline: none; box-shadow: 0 0 0 2px rgba(255,255,255,0.12); }
-          .fsl-results li .fsl-close svg { width: 10px; height: 10px; display: block; }
-        </style>
-        <div class="fsl-backdrop"></div>
-        <div class="fsl-center">
-          <div class="fsl-spotlight" role="dialog" aria-modal="true" aria-label="Spotlight">
-            <input id="${INPUT_ID}" type="text" autocomplete="off" placeholder="Start typing something..."/>
-            <ul class="fsl-results" aria-label="Open tabs"></ul>
-          </div>
-        </div>
-      `;
 
-      // Close on backdrop click
-      const backdrop = root.querySelector('.fsl-backdrop');
-      if (backdrop) backdrop.addEventListener('click', () => { log('backdrop clicked, closing overlay'); closeOverlay(); });
-
-      // Also close when clicking anywhere outside the spotlight panel (e.g., on the center area around it)
-      root.addEventListener('mousedown', (e) => {
-        try {
-          // Only when overlay is open
-          if (!overlay.classList.contains('open')) return;
-          const target = e.target;
-          const insideSpotlight = target && target.closest && target.closest('.fsl-spotlight');
-          if (!insideSpotlight) {
-            log('outside click detected, closing overlay');
-            closeOverlay();
-          }
-        } catch (_) {}
-      }, true);
+    // Append stylesheet link into shadow root so styles apply inside shadow DOM
+    if (root && root.appendChild) {
+      const link = document.createElement('link');
+      link.setAttribute('rel', 'stylesheet');
+      link.setAttribute('href', 'app.css');
+      try { root.appendChild(link); } catch (_) {}
     }
 
     document.documentElement.appendChild(overlay);
@@ -234,15 +153,6 @@
       }, true);
     }
 
-    // Prevent page scroll while open
-    const observer = new MutationObserver(() => {
-      if (overlay.classList.contains('open')) {
-        document.documentElement.style.overflow = 'hidden';
-      } else {
-        document.documentElement.style.overflow = '';
-      }
-    });
-    observer.observe(overlay, { attributes: true, attributeFilter: ['class'] });
 
     // Enable mouse-driven focusing only after actual mouse movement while overlay is open
     document.addEventListener('mousemove', () => {
@@ -547,62 +457,16 @@
     fetchAllTabsAndRender();
   }
 
-  function closeOverlay() {
-    log('closeOverlay');
-    const overlay = document.getElementById(OVERLAY_ID);
-    if (!overlay) return;
-    overlay.classList.remove('open');
-    overlay.setAttribute('aria-hidden', 'true');
-    // Reset mouse focus state when closing
-    STATE.allowMouseFocus = false;
-  }
-
-  // Close the extension window (if running in extension page), otherwise just close overlay
+  // Close the extension window
   function closeExtensionWindow() {
-    try {
-      if (IS_EXTENSION_PAGE) {
-        window.close();
-      } else {
-        closeOverlay();
-      }
-    } catch (_) {
-      try { closeOverlay(); } catch (__) {}
-    }
+    try { window.close(); } catch (_) {}
   }
 
-  function toggleOverlay() {
-    const overlay = createOverlay();
-    const isOpen = overlay.classList.contains('open');
-    log('toggleOverlay', { currentlyOpen: isOpen });
-    if (isOpen) closeOverlay(); else openOverlay();
-  }
 
-  // Listen for command messages from background
-  const portMessage = (msg) => {
-    log('runtime message received', msg);
-    if (!msg) return;
-    if (msg.type === 'toggle-spotlight') {
-      log('processing toggle-spotlight message');
-      toggleOverlay();
-    }
-  };
-
+  // Start UI and auto-close on focus loss
   try {
-    // Prefer browser API; fallback to chrome
-    const api = (typeof browser !== 'undefined') ? browser : chrome;
-    api.runtime.onMessage.addListener(portMessage);
-    log('registered runtime.onMessage listener');
-  } catch (e) {
-    log('runtime messaging API not available', e);
-    // in case messaging API isn't available, do nothing
-  }
-
-  // If running inside an extension page, open the UI and auto-close on focus loss
-  try {
-    if (IS_EXTENSION_PAGE) {
-      window.addEventListener('blur', () => { try { closeExtensionWindow(); } catch (_) {} }, true);
-      document.addEventListener('visibilitychange', () => { try { if (document.hidden) closeExtensionWindow(); } catch (_) {} }, true);
-      openOverlay();
-    }
+    window.addEventListener('blur', () => { try { closeExtensionWindow(); } catch (_) {} }, true);
+    document.addEventListener('visibilitychange', () => { try { if (document.hidden) closeExtensionWindow(); } catch (_) {} }, true);
+    openOverlay();
   } catch (_) {}
 })();
