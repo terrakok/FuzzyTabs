@@ -2,7 +2,7 @@
   // Use browser.* if available, fallback to chrome.* for compatibility
   const api = (typeof browser !== 'undefined') ? browser : chrome;
   const DEBUG = false;
-  const log = (...args) => { if (!DEBUG) return; try { console.debug('[FuzzySpotlight][background]', ...args); } catch (_) {} };
+  const log = (...args) => { if (!DEBUG) return; try { console.debug('[FuzzyTabs][background]', ...args); } catch (_) {} };
   log('background loaded');
 
   // Small helpers to deduplicate repeated tab activation code
@@ -39,9 +39,7 @@
       activateTabAndRespond(tabId, sendResponse);
     }
   }
-
-
-
+  
   // Handle messages from content scripts
   if (api && api.runtime && api.runtime.onMessage) {
     api.runtime.onMessage.addListener((msg, sender, sendResponse) => {

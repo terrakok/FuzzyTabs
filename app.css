@@ -1,4 +1,4 @@
-html, body { margin: 0; padding: 0; width: 900px; height: 560px; background: transparent; }
+html, body { margin: 0; padding: 0; width: 800px; height: 560px; background: transparent; }
 
 :host { position: fixed; inset: 0; z-index: 2147483647; display: none; }
 :host(.open) { display: block; }
@@ -22,3 +22,7 @@ html, body { margin: 0; padding: 0; width: 900px; height: 560px; background: tra
 .fsl-results li .fsl-close:active { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.14); }
 .fsl-results li .fsl-close:focus-visible { outline: none; box-shadow: 0 0 0 2px rgba(255,255,255,0.12); }
 .fsl-results li .fsl-close svg { width: 10px; height: 10px; display: block; }
+.fsl-results { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.35) transparent; }
+.fsl-results::-webkit-scrollbar { width: 8px; height: 8px; }
+.fsl-results::-webkit-scrollbar-thumb { background-color: rgba(255,255,255,0.35); border-radius: 6px; }
+.fsl-results::-webkit-scrollbar-track { background: transparent; }

@@ -1,25 +1,19 @@
 (function() {
-  const OVERLAY_ID = "fuzzy-spotlight-overlay";
-  const INPUT_ID = "fuzzy-spotlight-input";
   const DEBUG = false;
-  const log = (...args) => { if (!DEBUG) return; try { console.debug('[FuzzySpotlight][content]', ...args); } catch (_) {} };
+  const log = (...args) => { if (!DEBUG) return; try { console.debug('[FuzzyTabs][content]', ...args); } catch (_) {} };
   log('content script loaded', { url: location.href });
 
   // State for results navigation
   const STATE = { allTabs: [], tabs: [], focusedIndex: -1, query: '', allowMouseFocus: false };
 
-  function getOverlayElements() {
-    const overlay = document.getElementById(OVERLAY_ID) || createOverlay();
-    const root = overlay.shadowRoot || overlay;
-    return {
-      overlay,
-      input: root.querySelector('#' + CSS.escape(INPUT_ID)),
-      ul: root.querySelector('.fsl-results')
-    };
+  function getUIElements() {
+    const input = document.getElementById("fuzzy-tabs-input");
+    const ul = document.querySelector('.fsl-results');
+    return { input, ul };
   }
 
   function setFocusedIndex(newIndex) {
-    const { ul } = getOverlayElements();
+    const { ul } = getUIElements();
     const items = ul ? Array.from(ul.querySelectorAll('li')) : [];
     if (!items.length) { STATE.focusedIndex = -1; return; }
     const max = items.length - 1;
@@ -38,7 +32,7 @@
   }
 
   function moveFocus(delta) {
-    const { ul } = getOverlayElements();
+    const { ul } = getUIElements();
     const items = ul ? Array.from(ul.querySelectorAll('li')) : [];
     if (!items.length) return;
     const next = STATE.focusedIndex < 0 ? 0 : STATE.focusedIndex + delta;
@@ -73,7 +67,7 @@
   }
 
   function computeResultsAndRender() {
-    const { ul, input } = getOverlayElements();
+    const { ul, input } = getUIElements();
     if (!ul) return;
     const q = (input && input.value || '').trim();
     STATE.query = q;
@@ -90,162 +84,9 @@
     renderTabsList(fuzzySearchResults);
   }
 
-  function createOverlay() {
-    log('createOverlay called');
-    if (document.getElementById(OVERLAY_ID)) return document.getElementById(OVERLAY_ID);
-
-    const overlay = document.createElement('div');
-    overlay.id = OVERLAY_ID;
-    overlay.setAttribute('aria-hidden', 'true');
-
-    // Shadow DOM host content
-    const root = overlay.attachShadow ? overlay.attachShadow({ mode: 'open' }) : overlay;
-
-      // Full-page layout inside the extension page (no backdrop, no centered popup)
-      root.innerHTML = `
-        <div class="fsl-page" role="application" aria-label="FuzzyTabs">
-          <input id="${INPUT_ID}" type="text" autocomplete="off" placeholder="Start typing something..."/>
-          <ul class="fsl-results" aria-label="Open tabs"></ul>
-        </div>
-      `;
-
-    // Append stylesheet link into shadow root so styles apply inside shadow DOM
-    if (root && root.appendChild) {
-      const link = document.createElement('link');
-      link.setAttribute('rel', 'stylesheet');
-      link.setAttribute('href', 'app.css');
-      try { root.appendChild(link); } catch (_) {}
-    }
-
-    document.documentElement.appendChild(overlay);
-    log('overlay injected into DOM');
-
-    // Wire input events for fuzzy search
-    const inputEl = root.querySelector('#' + CSS.escape(INPUT_ID));
-    if (inputEl) {
-      inputEl.addEventListener('input', () => computeResultsAndRender());
-      // If Vimium or other extensions steal focus from the input on Escape (blurring it),
-      // ensure that leaving the overlay closes it/window to match expected UX.
-      const isInsideOverlay = (node) => {
-        try {
-          if (!node) return false;
-          if (node === overlay) return true;
-          if (overlay.shadowRoot && overlay.shadowRoot.contains(node)) return true;
-          return false;
-        } catch (_) { return false; }
-      };
-      inputEl.addEventListener('blur', (ev) => {
-        try {
-          if (!overlay.classList.contains('open')) return;
-          const next = ev.relatedTarget;
-          if (isInsideOverlay(next)) return;
-          // Defer to allow any immediate focus changes. If focus ends up outside, close.
-          setTimeout(() => {
-            if (!overlay.classList.contains('open')) return;
-            const aeDoc = document.activeElement;
-            const insideNow = isInsideOverlay(aeDoc) || (overlay.shadowRoot && overlay.shadowRoot.activeElement);
-            if (!insideNow) {
-              log('Input blurred away from overlay, closing');
-              closeExtensionWindow();
-            }
-          }, 0);
-        } catch (_) {}
-      }, true);
-    }
-
-
-    // Enable mouse-driven focusing only after actual mouse movement while overlay is open
-    document.addEventListener('mousemove', () => {
-      if (overlay.classList.contains('open')) {
-        STATE.allowMouseFocus = true;
-      }
-    }, true);
-
-    // Keyboard handling when overlay is open
-    document.addEventListener('keydown', (e) => {
-      const isOpen = overlay.classList.contains('open');
-      if (!isOpen) return;
-      // Any key press disables mouse-driven focusing until the mouse moves again
-      STATE.allowMouseFocus = false;
-      if (e.key === 'Escape') {
-        log('Escape pressed, closing');
-        e.preventDefault();
-        closeExtensionWindow();
-        return;
-      }
-      if (e.key === 'ArrowDown' || (e.ctrlKey && (e.key === 'n' || e.key === 'N'))) {
-        e.preventDefault();
-        moveFocus(1);
-        return;
-      }
-      if (e.key === 'ArrowUp' || (e.ctrlKey && (e.key === 'p' || e.key === 'P'))) {
-        e.preventDefault();
-        moveFocus(-1);
-        return;
-      }
-      if (e.key === 'Enter') {
-        // Activate the focused tab
-        const { ul } = getOverlayElements();
-        if (!ul) return;
-        const items = Array.from(ul.querySelectorAll('li'));
-        if (STATE.focusedIndex >= 0 && items[STATE.focusedIndex]) {
-          const li = items[STATE.focusedIndex];
-          const tabId = li && li.getAttribute('data-tab-id');
-          if (tabId) {
-            e.preventDefault();
-            activateTabById(parseInt(tabId, 10));
-          }
-        }
-        return;
-      }
-      // Ctrl/Cmd+W closes the focused tab from the list (not the browser tab)
-      const isMac = navigator.platform && /Mac/i.test(navigator.platform);
-      if ((e.key === 'w' || e.key === 'W') && (e.ctrlKey && isMac || e.altKey && !isMac)) {
-        const { ul } = getOverlayElements();
-        if (!ul) return;
-        const items = Array.from(ul.querySelectorAll('li'));
-        if (STATE.focusedIndex >= 0 && items[STATE.focusedIndex]) {
-          const li = items[STATE.focusedIndex];
-          const tabIdStr = li && li.getAttribute('data-tab-id');
-          if (tabIdStr) {
-            e.preventDefault();
-            e.stopPropagation();
-            const tabId = parseInt(tabIdStr, 10);
-            try {
-              const api = (typeof browser !== 'undefined') ? browser : chrome;
-              api.runtime.sendMessage({ type: 'close-tab', tabId }, (resp) => {
-                // Optimistically remove the item from the list
-                try {
-                  li.remove();
-                  const remaining = Array.from(ul.querySelectorAll('li'));
-                  // Update STATE.tabs and STATE.allTabs to reflect removal
-                  STATE.tabs = STATE.tabs.filter(t => t.id !== tabId);
-                  STATE.allTabs = STATE.allTabs.filter(t => t.id !== tabId);
-                  // Adjust focus to a sensible item
-                  if (remaining.length > 0) {
-                    const nextIndex = Math.min(STATE.focusedIndex, remaining.length - 1);
-                    STATE.focusedIndex = -1; // will be set by setFocusedIndex
-                    setFocusedIndex(nextIndex);
-                  } else {
-                    // No items left; show empty message
-                    computeResultsAndRender();
-                  }
-                } catch (_) {}
-              });
-            } catch (_) {}
-          }
-        }
-        return;
-      }
-    }, true);
-
-    return overlay;
-  }
-
-  // Helpers injected between overlay creation and rendering
   function renderTabsList(items) {
     try {
-      const { overlay, ul } = getOverlayElements();
+      const { ul } = getUIElements();
       if (!ul) return;
       ul.innerHTML = '';
 
@@ -440,19 +281,98 @@
     }
   }
 
-  function openOverlay() {
-    log('openOverlay');
-    const overlay = createOverlay();
-    overlay.classList.add('open');
-    overlay.setAttribute('aria-hidden', 'false');
+  function initApp() {
+    log('initApp');
     // On open, require a fresh mouse move to enable hover focusing
     STATE.allowMouseFocus = false;
-    const { input } = getOverlayElements();
+    const { input } = getUIElements();
     if (input) {
       log('focusing input');
       input.value = '';
       setTimeout(() => input.focus(), 0);
+      input.addEventListener('input', () => computeResultsAndRender());
     }
+
+    // Enable mouse-driven focusing after actual mouse movement
+    document.addEventListener('mousemove', () => {
+      STATE.allowMouseFocus = true;
+    }, true);
+
+    // Keyboard handling on the app page
+    document.addEventListener('keydown', (e) => {
+      // Any key press disables mouse-driven focusing until the mouse moves again
+      STATE.allowMouseFocus = false;
+      if (e.key === 'Escape') {
+        log('Escape pressed, closing');
+        e.preventDefault();
+        closeExtensionWindow();
+        return;
+      }
+      if (e.key === 'ArrowDown' || (e.ctrlKey && (e.key === 'n' || e.key === 'N'))) {
+        e.preventDefault();
+        moveFocus(1);
+        return;
+      }
+      if (e.key === 'ArrowUp' || (e.ctrlKey && (e.key === 'p' || e.key === 'P'))) {
+        e.preventDefault();
+        moveFocus(-1);
+        return;
+      }
+      if (e.key === 'Enter') {
+        // Activate the focused tab
+        const { ul } = getUIElements();
+        if (!ul) return;
+        const items = Array.from(ul.querySelectorAll('li'));
+        if (STATE.focusedIndex >= 0 && items[STATE.focusedIndex]) {
+          const li = items[STATE.focusedIndex];
+          const tabId = li && li.getAttribute('data-tab-id');
+          if (tabId) {
+            e.preventDefault();
+            activateTabById(parseInt(tabId, 10));
+          }
+        }
+        return;
+      }
+      // Ctrl/Cmd+W closes the focused tab from the list (not the browser tab)
+      const isMac = navigator.platform && /Mac/i.test(navigator.platform);
+      if ((e.key === 'w' || e.key === 'W') && (e.ctrlKey && isMac || e.altKey && !isMac)) {
+        const { ul } = getUIElements();
+        if (!ul) return;
+        const items = Array.from(ul.querySelectorAll('li'));
+        if (STATE.focusedIndex >= 0 && items[STATE.focusedIndex]) {
+          const li = items[STATE.focusedIndex];
+          const tabIdStr = li && li.getAttribute('data-tab-id');
+          if (tabIdStr) {
+            e.preventDefault();
+            e.stopPropagation();
+            const tabId = parseInt(tabIdStr, 10);
+            try {
+              const api = (typeof browser !== 'undefined') ? browser : chrome;
+              api.runtime.sendMessage({ type: 'close-tab', tabId }, (resp) => {
+                // Optimistically remove the item from the list
+                try {
+                  li.remove();
+                  const remaining = Array.from(ul.querySelectorAll('li'));
+                  // Update STATE.tabs and STATE.allTabs to reflect removal
+                  STATE.tabs = STATE.tabs.filter(t => t.id !== tabId);
+                  STATE.allTabs = STATE.allTabs.filter(t => t.id !== tabId);
+                  // Adjust focus to a sensible item
+                  if (remaining.length > 0) {
+                    const nextIndex = Math.min(STATE.focusedIndex, remaining.length - 1);
+                    STATE.focusedIndex = -1; // will be set by setFocusedIndex
+                    setFocusedIndex(nextIndex);
+                  } else {
+                    // No items left; show empty message
+                    computeResultsAndRender();
+                  }
+                } catch (_) {}
+              });
+            } catch (_) {}
+          }
+        }
+      }
+    }, true);
+
     // Load tabs list under the input
     fetchAllTabsAndRender();
   }
@@ -462,11 +382,5 @@
     try { window.close(); } catch (_) {}
   }
 
-
-  // Start UI and auto-close on focus loss
-  try {
-    window.addEventListener('blur', () => { try { closeExtensionWindow(); } catch (_) {} }, true);
-    document.addEventListener('visibilitychange', () => { try { if (document.hidden) closeExtensionWindow(); } catch (_) {} }, true);
-    openOverlay();
-  } catch (_) {}
+  initApp();
 })();
