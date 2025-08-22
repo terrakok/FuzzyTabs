@@ -49,7 +49,9 @@
           log('get-all-tabs request');
           api.tabs.query({}, (tabs) => {
             try {
-              const data = (tabs || []).map(t => ({ id: t.id, title: t.title, url: t.url, favIconUrl: t.favIconUrl, active: t.active, windowId: t.windowId }));
+              const data = (tabs || []).map(
+                  t => ({ id: t.id, title: t.title, url: t.url, favIconUrl: t.favIconUrl, active: t.active, windowId: t.windowId, lastAccessed: t.lastAccessed })
+              );
               sendResponse({ ok: true, tabs: data });
             } catch (e) {
               log('error mapping tabs', e);

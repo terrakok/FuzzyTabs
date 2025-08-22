@@ -72,9 +72,13 @@
     const q = (input && input.value || '').trim();
     STATE.query = q;
     if (!q) {
-      // No query: show all tabs in original order
-      renderTabsList(STATE.allTabs.map(t => ({ item: t })));
-      return;
+        // No query: show all tabs sorted by most recent first
+        const sortedTabs = STATE.allTabs
+            .slice()
+            .sort((a, b) => (b.lastAccessed || 0) - (a.lastAccessed || 0))
+            .map(t => ({item: t}));
+        renderTabsList(sortedTabs);
+        return;
     }
 
     const fuzzySearch = window.Microfuzz.createFuzzySearch(STATE.allTabs, {
