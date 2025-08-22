@@ -15,6 +15,8 @@ FuzzyTabs is a minimal browser extension that lets you quickly find and switch b
 search.
 It runs instantly, stays out of your way, and keeps resource usage low.
 
+https://addons.mozilla.org/en-US/firefox/addon/terrakok-fuzzytabs/
+
 ## Motivation
 
 Firefox has a built-in search for tabs, but it's not as fast and convenient as FuzzyTabs:
@@ -36,7 +38,7 @@ Firefox has a built-in search for tabs, but it's not as fast and convenient as F
 
 ## Usage
 
-- Open: Click the FuzzyTabs toolbar button
+- Open: Click the FuzzyTabs toolbar button or `Ctrl+Shift+Space`
 - Navigate: Arrow Up/Down or `Ctrl+N` / `Ctrl+P`
 - Activate the selected tab: Enter
 - Close the selected tab: `Ctrl+W` (macOS) / `Alt+W` (Linux/Windows)
